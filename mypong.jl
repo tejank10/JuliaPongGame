@@ -4,16 +4,17 @@ using BackpropNeuralNet
 
 # Zmienne zdefiniowane globalnie - takie pseudostałe parametry
 ball_radius = 10.0;
-ball_maxvelocity = 6.0;
+ball_maxvelocity = 10.0
 
 paddle_width = 15.0;
 paddle_height = 150.0;
-paddle_velocity = 6.0;
+paddle_velocity = 10.0
 
 window_width = 800;
 window_height = 600;
 
 screen = SFML.Image{};
+net = init_network([5, 10, 1])
 
 # Zdefiniowanie typów potrzebnych do obsługi elementów
 type Score
@@ -69,8 +70,9 @@ end
 function resetBall(ball::Ball, direction::Int)
     # ustawienie piłki w pozycję startową
     set_position(ball.shape, ball.starting_pos);
+   
     # zmiana kierunku lotu piłki
-    ball.velocity = Vector2f(direction*ball_maxvelocity, ball_maxvelocity/2);
+    ball.velocity = Vector2f(direction*ball_maxvelocity, (rand(0:1) == 0 ? 1 : -1) * ball_maxvelocity / 2);
 end
 
 function updateState(ball::Ball, p1::Paddle, p2::Paddle, score::Score)
@@ -164,6 +166,7 @@ function updatePaddle(paddle::Paddle, keyFromEvent = 0)
         key_code = keyFromEvent.key_code;
     else
         key_code = 0;
+    end
         
     # przesuń paletkę
     move(paddle.shape, paddle.velocity)
@@ -186,6 +189,42 @@ function updatePaddle(paddle::Paddle, keyFromEvent = 0)
     else
         paddle.velocity.y = 0
     end
+end
+
+function computer_move(ball::Ball, pc_paddle::Paddle, opp_paddle::Paddle, score::Score)
+
+    ball_position = get_position(ball.shape)
+    ball_position_x = convert(Float64, ball_position.x) / convert(Float64, window_width)
+    ball_position_y = convert(Float64, ball_position.y) / convert(Float64, window_height)
+    ball_velocity_x = convert(Float64, ball.velocity.x) / convert(Float64, ball_maxvelocity)
+    ball_velocity_y = convert(Float64, ball.velocity.y) / convert(Float64, ball_maxvelocity)
+    
+    pc_paddle_position = get_position(pc_paddle.shape)
+    pc_paddle_position_y = convert(Float64, pc_paddle_position.y) / convert(Float64, window_height)
+    opp_paddle_position = get_position(opp_paddle.shape)
+    opp_paddle_position_y = convert(Float64, opp_paddle_position.y) / convert(Float64, window_height)
+     
+    expected_result = 0.5 
+    
+    if is_key_pressed(opp_paddle.up_direction)
+      expected_result = 1.0
+    elseif is_key_pressed(opp_paddle.down_direction)
+      expected_result = 0.0
+    end
+       
+    train(net, 
+	[1 - ball_position_x, ball_position_y, opp_paddle_position_y, -ball_velocity_x, ball_velocity_y], 
+	[expected_result])
+
+    result = net_eval(net, [ball_position_x, ball_position_y, pc_paddle_position_y, ball_velocity_x, ball_velocity_y])[1]
+    
+    if result > 0.5
+      run(`xdotool key w`)
+    else result < 0.5
+      run(`xdotool key s`)
+    end
+    
+    println(expected_result, " ", result)
 end
 
 function main()
@@ -250,7 +289,7 @@ function main()
         draw(window, score_text)
         display(window)
         
-        # screen = capture(window);
+        computer_move(ball, paddles[1], paddles[2], score)
     end
 end
 

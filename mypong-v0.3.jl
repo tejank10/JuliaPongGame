@@ -243,7 +243,9 @@ function main()
         draw(window, score_text)
         display(window)
         
-        # screen = capture(window);
+        screen = capture(window);
+        
+        run(`xdotool key Up`)
     end
 end
 
